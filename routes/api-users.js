@@ -1,11 +1,15 @@
-const router = require('koa-router')()
+const router = require('koa-router')();
+const user = require('../controller/user');
 
-router.prefix('/api/users');
+router.prefix('/api/user');
 
-// 添加用户
-router.post('/add', function (ctx, next) {
-  console.log(ctx.request.body);
-});
+// 验证注册用户信息是否重复
+router.post('/validate', user.validateUser)
 
+// 注册用户
+router.post('/sign', user.signInUser);
+
+// 登录
+router.post('/login', user.loginInUser);
 
 module.exports = router

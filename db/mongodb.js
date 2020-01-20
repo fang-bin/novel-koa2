@@ -17,6 +17,8 @@ const connect = function (callback){
   return mongoose.connect(config.dbUrl, {
     keepAlive: 1,
     useFindAndModify: false,
+    useUnifiedTopology: true,
+    useNewUrlParser: true,
   });
 }
 

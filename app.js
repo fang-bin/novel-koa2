@@ -1,10 +1,10 @@
 const Koa = require('koa');
 const app = new Koa();
-// const views = require('koa-views');
 const json = require('koa-json');
 const onerror = require('koa-onerror');
 const body = require('koa-body');
 const logger = require('koa-logger');
+const routes = require('./routes');
 
 global.Promise = require('bluebird');
 
@@ -35,8 +35,7 @@ app.use(async (ctx, next) => {
 })
 
 // routes
-// app.use(index.routes(), index.allowedMethods())
-// app.use(users.routes(), users.allowedMethods())
+routes(app);
 
 // error-handling
 app.on('error', (err, ctx) => {

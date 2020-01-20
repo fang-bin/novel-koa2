@@ -14,6 +14,21 @@ global.Promise = require('bluebird');
 // error handler
 onerror(app)
 
+app.use(async (ctx, next) => {
+  const { origin, Origin, referer, Referer, } = ctx.request.headers;
+  const allowOrigin = origin || Origin || referer || Referer || '*';
+  ctx.response.set('Access-Control-Allow-Origin', allowOrigin);
+  ctx.response.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  ctx.response.set('Access-Control-Allow-Methods', 'PUT,POST,GET,DELETE,OPTIONS');
+  ctx.response.set('Access-Control-Allow-Credentials', true);
+  ctx.response.set('X-Powered-By', 'Koa2');
+  if (ctx.method === 'OPTIONS'){
+    ctx.status = 200;
+  }else {
+    await next();
+  }
+});
+
 // middlewares
 app.use(body({
   multipart: true,

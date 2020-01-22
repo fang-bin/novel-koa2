@@ -3,6 +3,7 @@ const UserModel = require('../models/user');
 const Api = require('./api');
 const regexp = require('../regexp/user');
 const bcrypt = require('bcrypt');
+const Joi = require('joi');
 
 class User extends Api {
   constructor() {
@@ -12,7 +13,15 @@ class User extends Api {
     this.signInUser = this.signInUser.bind(this);
     this.loginInUser = this.loginInUser.bind(this);
   }
-  // 查找数据库中参数是否有重复的数据
+  /**
+   * @description 查找数据库中参数是否有重复的数据
+   * 此方法中没有对 ctx.request.body 做校验，参数校验要放在具体的 api 接口中去处理
+   * @author fangbin
+   * @param {*} ctx
+   * @param {*} next
+   * @returns
+   * @memberof User
+   */
   async hasUserRepeatParams(ctx, next) {
     const {
       nick_name = '',
@@ -30,66 +39,65 @@ class User extends Api {
       })]);
     } catch (error) {
       console.log('验证注册用户参数是否重复失败', error.message);
-      ctx.body = this.fail('验证失败', 'ERROR');
+      ctx.throw(500, '验证注册用户参数-服务端错误');
       return null;
     }
     return register.some(item => item);
   }
 
-  // 验证注册用户信息是否重复
+  /**
+   * @description 验证注册用户信息是否重复
+   * @author fangbin
+   * @param {*} ctx
+   * @param {*} next
+   * @returns
+   * @memberof User
+   */
   async validateUser(ctx, next) {
-    const {
-      nick_name,
-      email,
-      account,
-    } = ctx.request.body;
-    try {
-      if (nick_name && !regexp.nickName.test(nick_name)){
-        throw new Error('nick_name参数不符合规范');
-      }else if (email && !regexp.email.test(email)){
-        throw new Error('email参数不符合规范');
-      }else if (account && !regexp.account.test(account)){
-        throw new Error('account参数不符合规范');
-      }
-    } catch (error) {
-      console.log('验证注册用户参数是否重复错误', error.message);
-      ctx.body = this.fail(error.message, 'PARAMS_ERROR');
-      return undefined;
-    }
+    const validateSchema = Joi.object({
+        nick_name: Joi.string().regex(regexp.nickName),
+        email: Joi.string().regex(regexp.email),
+        account: Joi.string().regex(regexp.account),
+      }).length(1);
+    const checkStatus = ctx.validate(ctx.request.body, validateSchema, false);
+    if (!checkStatus) return undefined;
     const hasRepeatParams = await this.hasUserRepeatParams(ctx);
     if (hasRepeatParams === null) return undefined;
     if (hasRepeatParams){
-      ctx.body = this.success(false);  //有重复信息
+      ctx.success(false, '参数重复');
     }else {
-      ctx.body = this.success(true);  //无重复信息
+      ctx.success(true, '该数据可以使用');  //无重复信息
     }
   }
+  /**
+   * @description 用户注册
+   * @author fangbin
+   * @param {*} ctx
+   * @param {*} next
+   * @returns
+   * @memberof User
+   */
   async signInUser(ctx, next) {
+    const checkStatus = ctx.validate(ctx.request.body, {
+      nick_name: Joi.string().regex(regexp.nickName).required(),
+      email: Joi.string().regex(regexp.email).required(),
+      account: Joi.string().regex(regexp.account).required(),
+      password: Joi.string().required(),
+    });
+    if (!checkStatus) return undefined;
     const {
       nick_name = '',
       email = '',
       account = '',
       password,
     } = ctx.request.body;
-    try {
-      if (nick_name && !regexp.nickName.test(nick_name)) {
-        throw new Error('nick_name参数不符合规范');
-      } else if (email && !regexp.email.test(email)) {
-        throw new Error('email参数不符合规范');
-      } else if (account && !regexp.account.test(account)) {
-        throw new Error('account参数不符合规范');
-      }else if (!password){
-        throw new Error('缺少password');
-      }
-    } catch (error) {
-      console.log('注册用户参数错误', error.message);
-      ctx.body = this.fail(error.message, 'PARAMS_ERROR');
-      return undefined;
-    }
     const hasRepeatParams = await this.hasUserRepeatParams(ctx);
     if (hasRepeatParams === null) return undefined;
     if (hasRepeatParams){
-      ctx.body = this.fail('参数有重复', 'PARAMS_REPEAT');
+      ctx.throw(400, {
+        name: 'PARAMS_EXIST',
+        message: '参数已注册',
+      });
       return undefined;
     }
     try {
@@ -99,41 +107,48 @@ class User extends Api {
         password,
         email,
       });
-      ctx.body = this.success(true);
+      ctx.success(true, '注册成功');
     } catch (error) {
       console.log('创建用户失败', error.message);
-      ctx.body = this.fail(error.message, 'CREATE_USER_FAIL');
+      ctx.throw(500, '创建用户失败');
     }
   }
 
-  // 用户登录
+  /**
+   * @description 用户登录
+   * @author fangbin
+   * @param {*} ctx
+   * @param {*} next
+   * @returns
+   * @memberof User
+   */
   async loginInUser(ctx, next) {
+    const checkStatus = ctx.validate(ctx.request.body, {
+      account: Joi.string().regex(regexp.account).required(),
+      password: Joi.string().required(),
+    });
+    if (!checkStatus) return undefined;
     const {
       account = '',
       password,
     } = ctx.request.body;
-    try {
-      if (!regexp.account.test(account)){
-        throw new Error('nick_name参数不符合规范');
-      }else if (!password){
-        throw new Error('缺少password');
-      }
-    } catch (error) {
-      console.log('登录用户信息不符合规范或缺少参数', error.message);
-      ctx.body = this.fail(error.message, 'PARAMS_ERROR');
-      return undefined;
-    }
     const user = await UserModel.findOne({ account, });
     if (!user){
-      ctx.body = this.fail('该用户还未注册，请先注册!', 'NOT_REGISTER');
+      ctx.throw(403, {
+        name: 'NOT_USER',
+        message: '用户不存在',
+      });
       return undefined;
     }
     const dbPassword = user.password;
     const isMatch = await bcrypt.compare(password, dbPassword);
     if (isMatch){
-      ctx.body = this.success(true);
+      ctx.success(true, '登录成功');
     }else {
-      ctx.body = this.fail('密码不正确', 'PASSWORD_ERROR');
+      ctx.throw(403, {
+        name: 'PASSWORD_ERROR',
+        message: '密码不正确',
+      });
     }
   }
 

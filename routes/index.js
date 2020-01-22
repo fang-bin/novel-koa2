@@ -1,5 +1,9 @@
-const apiUser = require('./api-users');
+const fs = require('fs');
 
 module.exports = (app) => {
-  app.use(apiUser.routes(), apiUser.allowedMethods());
+  fs.readdirSync(__dirname).forEach(file => {
+    if (file === 'index.js') return;
+    const route = require(`./${file}`);
+    app.use(route.routes(), route.allowedMethods());
+  });
 }

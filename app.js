@@ -1,27 +1,45 @@
 const Koa = require('koa');
 const app = new Koa();
 const json = require('koa-json');
-const onerror = require('koa-onerror');
+// const onerror = require('koa-onerror');
+const onerror = require('koa-json-error');
 const body = require('koa-body');
 const logger = require('koa-logger');
 const routes = require('./routes');
+const cors = require('koa2-cors');
+const contextUtils = require('./utils/context');
 
 global.Promise = require('bluebird');
 
-// const index = require('./routes/index')
-// const users = require('./routes/users')
+// 扩展context方法
+Object.keys(contextUtils).forEach(key => {
+  app.context[key] = contextUtils[key];
+});
 
 // error handler
-onerror(app)
+app.use(onerror({
+  postFormat: (e, {
+    stack,
+    ...rest
+  }) => (process.env.NODE_ENV !== 'development' ? rest : {
+    stack,
+    ...rest
+  }),
+}))
+
+app.use(cors({
+  origin: function (ctx){
+    const { origin, Origin, referer, Referer, } = ctx.request.headers;
+    return origin || Origin || referer || Referer || '*';
+  },
+  credentials: true,
+  allowMethods: ['PUT', 'POST', 'GET', 'DELETE', 'OPTIONS'],
+  allowHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+}));
 
 app.use(async (ctx, next) => {
-  const { origin, Origin, referer, Referer, } = ctx.request.headers;
-  const allowOrigin = origin || Origin || referer || Referer || '*';
-  ctx.response.set('Access-Control-Allow-Origin', allowOrigin);
-  ctx.response.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-  ctx.response.set('Access-Control-Allow-Methods', 'PUT,POST,GET,DELETE,OPTIONS');
-  ctx.response.set('Access-Control-Allow-Credentials', true);
   ctx.response.set('X-Powered-By', 'Koa2');
+  ctx.response.set('Server', 'Node8+');
   if (ctx.method === 'OPTIONS'){
     ctx.status = 200;
   }else {
@@ -32,14 +50,14 @@ app.use(async (ctx, next) => {
 // middlewares
 app.use(body({
   multipart: true,
+  formidable: {
+    keepExtensions: true, // 保持文件的后缀
+    maxFileSize: 2000 * 1024 * 1024 // 设置上传文件大小最大限制，默认20M
+  },
 }));
 app.use(json());
 app.use(logger());
 app.use(require('koa-static')(__dirname + '/static'));
-
-// app.use(views(__dirname + '/views', {
-//   extension: 'pug'
-// }))
 
 // logger
 app.use(async (ctx, next) => {

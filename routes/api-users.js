@@ -12,4 +12,7 @@ router.post('/sign', user.signInUser);
 // 登录
 router.post('/login', user.loginInUser);
 
+// 获取加密的公钥
+router.get('/key', user.getKey);
+
 module.exports = router

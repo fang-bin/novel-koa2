@@ -4,6 +4,7 @@ const Api = require('./api');
 const regexp = require('../regexp/user');
 const bcrypt = require('bcrypt');
 const Joi = require('joi');
+const RSA = require('../utils/rsa');
 
 class User extends Api {
   constructor() {
@@ -12,6 +13,16 @@ class User extends Api {
     this.validateUser = this.validateUser.bind(this);
     this.signInUser = this.signInUser.bind(this);
     this.loginInUser = this.loginInUser.bind(this);
+  }
+  /**
+   * @description 返回加密公钥
+   * @author fangbin
+   * @param {*} ctx
+   * @param {*} next
+   * @memberof User
+   */
+  async getKey(ctx, next) {
+    ctx.success(RSA.publicKey, '加密公钥');
   }
   /**
    * @description 查找数据库中参数是否有重复的数据
@@ -128,10 +139,11 @@ class User extends Api {
       password: Joi.string().required(),
     });
     if (!checkStatus) return undefined;
-    const {
+    let {
       account = '',
       password,
     } = ctx.request.body;
+    password = RSA.key.decrypt(password, 'utf8');
     const user = await UserModel.findOne({ account, });
     if (!user){
       ctx.throw(403, {
